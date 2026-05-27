@@ -1,0 +1,19 @@
+# Build artifacts
+bin/
+dist/
+*.test
+*.out
+
+# Go coverage and profiling outputs
+coverage.out
+*.coverprofile
+*.prof
+
+# Local caches
+.cache/
+.tmp/
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
