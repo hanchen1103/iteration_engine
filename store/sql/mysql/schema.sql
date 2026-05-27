@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS iteration_engine_runs (
     version_count INT NOT NULL DEFAULT 0,
     adopted_version_id VARCHAR(64) NULL,
     config JSON NULL,
+    generate_context JSON NULL,
     default_directives JSON NULL,
     rule_set_snapshot JSON NULL,
     final_score DOUBLE NULL,

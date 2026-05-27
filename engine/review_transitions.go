@@ -27,7 +27,9 @@ func (s *Service) applyReviewDecision(ctx context.Context, run *domain.Run, vers
 			state.ApplyReviewedRunState(run, domain.RunStatusWaitingManual, review, now)
 			return s.store.UpdateRun(ctx, run)
 		}
-		_, err := s.startGenerate(ctx, run, version, review, autoReviewPlan(version, review), domain.ReviewPolicyRunDefault, "")
+		contextOptions := resolveGenerateContextOptions(run, nil)
+		plan := autoReviewPlan(version, review, contextOptions.Review)
+		_, err := s.startGenerate(ctx, run, version, review, plan, contextOptions, domain.ReviewPolicyRunDefault, "")
 		return err
 	default:
 		return s.failRunVersion(ctx, run, version, decision.Message)

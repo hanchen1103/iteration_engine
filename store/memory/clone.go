@@ -8,6 +8,7 @@ func cloneRun(in *domain.Run) *domain.Run {
 	}
 	out := *in
 	out.Config = domain.CloneRawMessage(in.Config)
+	out.GenerateContext = domain.CloneGenerateContextOptions(in.GenerateContext)
 	out.DefaultDirectives = domain.CloneDirectives(in.DefaultDirectives)
 	out.RuleSetSnapshot = domain.CloneRawMessage(in.RuleSetSnapshot)
 	out.FinalScore = cloneFloat64Ptr(in.FinalScore)

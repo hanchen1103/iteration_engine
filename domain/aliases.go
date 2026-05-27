@@ -22,6 +22,14 @@ type Artifact = model.Artifact
 
 type ReviewResult = model.ReviewResult
 type ReviewIssue = model.ReviewIssue
+type GenerateContextOptions = model.GenerateContextOptions
+type BaseVersionContextOptions = model.BaseVersionContextOptions
+type ReviewContextOptions = model.ReviewContextOptions
+type GenerateContext = model.GenerateContext
+type BaseVersionContext = model.BaseVersionContext
+type BaseVersionMetadata = model.BaseVersionMetadata
+type ReviewContext = model.ReviewContext
+type GenerateContextOption = model.GenerateContextOption
 type IterationPlan = model.IterationPlan
 type IterationDirective = model.IterationDirective
 type PlanSource = model.PlanSource
@@ -118,6 +126,126 @@ func CloneArtifacts(in []Artifact) []Artifact {
 
 func CloneDirectives(in []IterationDirective) []IterationDirective {
 	return model.CloneDirectives(in)
+}
+
+func CloneGenerateContextOptions(in *GenerateContextOptions) *GenerateContextOptions {
+	return model.CloneGenerateContextOptions(in)
+}
+
+func NewGenerateContextOptions(options ...GenerateContextOption) *GenerateContextOptions {
+	return model.NewGenerateContextOptions(options...)
+}
+
+func GenerateContextFull() *GenerateContextOptions {
+	return model.GenerateContextFull()
+}
+
+func GenerateContextNone() *GenerateContextOptions {
+	return model.GenerateContextNone()
+}
+
+func GenerateContextBaseContentOnly() *GenerateContextOptions {
+	return model.GenerateContextBaseContentOnly()
+}
+
+func GenerateContextReviewFeedbackOnly() *GenerateContextOptions {
+	return model.GenerateContextReviewFeedbackOnly()
+}
+
+func WithBaseVersion() GenerateContextOption {
+	return model.WithBaseVersion()
+}
+
+func WithoutBaseVersion() GenerateContextOption {
+	return model.WithoutBaseVersion()
+}
+
+func WithBaseMetadata() GenerateContextOption {
+	return model.WithBaseMetadata()
+}
+
+func WithoutBaseMetadata() GenerateContextOption {
+	return model.WithoutBaseMetadata()
+}
+
+func WithBaseContent() GenerateContextOption {
+	return model.WithBaseContent()
+}
+
+func WithoutBaseContent() GenerateContextOption {
+	return model.WithoutBaseContent()
+}
+
+func WithBaseArtifacts() GenerateContextOption {
+	return model.WithBaseArtifacts()
+}
+
+func WithoutBaseArtifacts() GenerateContextOption {
+	return model.WithoutBaseArtifacts()
+}
+
+func WithReview() GenerateContextOption {
+	return model.WithReview()
+}
+
+func WithoutReview() GenerateContextOption {
+	return model.WithoutReview()
+}
+
+func WithReviewPass() GenerateContextOption {
+	return model.WithReviewPass()
+}
+
+func WithoutReviewPass() GenerateContextOption {
+	return model.WithoutReviewPass()
+}
+
+func WithReviewScore() GenerateContextOption {
+	return model.WithReviewScore()
+}
+
+func WithoutReviewScore() GenerateContextOption {
+	return model.WithoutReviewScore()
+}
+
+func WithReviewSummary() GenerateContextOption {
+	return model.WithReviewSummary()
+}
+
+func WithoutReviewSummary() GenerateContextOption {
+	return model.WithoutReviewSummary()
+}
+
+func WithReviewFeedback() GenerateContextOption {
+	return model.WithReviewFeedback()
+}
+
+func WithoutReviewFeedback() GenerateContextOption {
+	return model.WithoutReviewFeedback()
+}
+
+func WithReviewIssues() GenerateContextOption {
+	return model.WithReviewIssues()
+}
+
+func WithoutReviewIssues() GenerateContextOption {
+	return model.WithoutReviewIssues()
+}
+
+func WithReviewExtensions(keys ...string) GenerateContextOption {
+	return model.WithReviewExtensions(keys...)
+}
+
+func WithoutReviewExtensions() GenerateContextOption {
+	return model.WithoutReviewExtensions()
+}
+
+func WithReviewRawJSON() GenerateContextOption {
+	return model.WithReviewRawJSON()
+}
+
+func WithoutReviewRawJSON() GenerateContextOption {
+	return model.WithoutReviewRawJSON()
 }
 
 func BoolDirective(key string, value bool, description string) IterationDirective {

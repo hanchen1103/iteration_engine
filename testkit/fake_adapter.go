@@ -48,8 +48,10 @@ func (a *Adapter) BuildGenerateJob(ctx context.Context, req ports.GenerateReques
 	_ = ctx
 	input, _ := json.Marshal(map[string]any{
 		"plan":             req.Plan,
-		"has_base_version": req.BaseVersion != nil,
-		"previous_review":  req.PreviousReview,
+		"context":          req.Context,
+		"context_options":  req.ContextOptions,
+		"has_base_version": req.Context.BaseVersion != nil,
+		"previous_review":  req.Context.PreviousReview,
 	})
 	return &ports.JobRequest{TaskName: "fake_generate", Input: input}, nil
 }

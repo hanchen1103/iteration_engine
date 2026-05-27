@@ -9,7 +9,7 @@ import (
 	"github.com/hanchen1103/iteration_engine/ports"
 )
 
-func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *domain.Version, previousReview *domain.ReviewResult, plan domain.IterationPlan, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
+func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *domain.Version, previousReview *domain.ReviewResult, plan domain.IterationPlan, contextOptions domain.GenerateContextOptions, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
 	adapter, spec, err := s.adapter(run.SceneKey)
 	if err != nil {
 		return nil, err
@@ -60,11 +60,12 @@ func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *doma
 	}
 	run.VersionCount = version.VersionNo
 
+	generateContext := buildGenerateContext(base, previousReview, contextOptions)
 	jobReq, err := adapter.BuildGenerateJob(ctx, ports.GenerateRequest{
 		Run:            run,
 		Target:         target,
-		BaseVersion:    base,
-		PreviousReview: previousReview,
+		Context:        generateContext,
+		ContextOptions: contextOptions,
 		Plan:           version.IterationPlan,
 	})
 	if err != nil {

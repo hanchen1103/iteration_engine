@@ -7,22 +7,24 @@ import (
 )
 
 type CreateRunRequest struct {
-	SceneKey          string                      `json:"sceneKey"`
-	Target            domain.TargetRef            `json:"target"`
-	IterationMode     domain.IterationMode        `json:"iterationMode,omitempty"`
-	MaxIterations     int                         `json:"maxIterations,omitempty"`
-	Config            json.RawMessage             `json:"config,omitempty"`
-	DefaultDirectives []domain.IterationDirective `json:"defaultDirectives,omitempty"`
-	Actor             string                      `json:"actor,omitempty"`
+	SceneKey          string                         `json:"sceneKey"`
+	Target            domain.TargetRef               `json:"target"`
+	IterationMode     domain.IterationMode           `json:"iterationMode,omitempty"`
+	MaxIterations     int                            `json:"maxIterations,omitempty"`
+	Config            json.RawMessage                `json:"config,omitempty"`
+	GenerateContext   *domain.GenerateContextOptions `json:"generateContext,omitempty"`
+	DefaultDirectives []domain.IterationDirective    `json:"defaultDirectives,omitempty"`
+	Actor             string                         `json:"actor,omitempty"`
 }
 
 type ContinueRunRequest struct {
-	RunID         string               `json:"runID"`
-	BaseVersionID string               `json:"baseVersionID,omitempty"`
-	BaseVersionNo int                  `json:"baseVersionNo,omitempty"`
-	MaxIterations int                  `json:"maxIterations,omitempty"`
-	Plan          domain.IterationPlan `json:"plan"`
-	Actor         string               `json:"actor,omitempty"`
+	RunID           string                         `json:"runID"`
+	BaseVersionID   string                         `json:"baseVersionID,omitempty"`
+	BaseVersionNo   int                            `json:"baseVersionNo,omitempty"`
+	MaxIterations   int                            `json:"maxIterations,omitempty"`
+	GenerateContext *domain.GenerateContextOptions `json:"generateContext,omitempty"`
+	Plan            domain.IterationPlan           `json:"plan"`
+	Actor           string                         `json:"actor,omitempty"`
 }
 
 type GenerateResultRequest struct {

@@ -46,6 +46,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*domain.
 		IterationMode:     mode,
 		MaxIterations:     state.ResolveMaxIterations(req.MaxIterations, spec.Capability.DefaultMaxIterations, defaultMaxIterations),
 		Config:            domain.CloneRawMessage(req.Config),
+		GenerateContext:   domain.CloneGenerateContextOptions(req.GenerateContext),
 		DefaultDirectives: domain.CloneDirectives(req.DefaultDirectives),
 		RuleSetSnapshot:   ruleSetSnapshot,
 		CreatedBy:         strings.TrimSpace(req.Actor),
@@ -76,7 +77,7 @@ func (s *Service) StartRun(ctx context.Context, runID string) (*domain.Version, 
 		Instruction: "Generate the first candidate version.",
 		Directives:  domain.CloneDirectives(run.DefaultDirectives),
 	}
-	return s.startGenerate(ctx, run, nil, nil, plan, domain.ReviewPolicyRunDefault, run.CreatedBy)
+	return s.startGenerate(ctx, run, nil, nil, plan, resolveGenerateContextOptions(run, nil), domain.ReviewPolicyRunDefault, run.CreatedBy)
 }
 
 func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*domain.Version, error) {
@@ -126,7 +127,7 @@ func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*dom
 
 	previousReview := reviewResultFromVersion(base)
 	s.recordEvent(ctx, domain.EventManualContinue, run.ID, base.ID, req.Actor, "", mustMarshal(plan))
-	return s.startGenerate(ctx, run, base, previousReview, plan, domain.ReviewPolicyRunDefault, req.Actor)
+	return s.startGenerate(ctx, run, base, previousReview, plan, resolveGenerateContextOptions(run, req.GenerateContext), domain.ReviewPolicyRunDefault, req.Actor)
 }
 
 func (s *Service) GetRunDetail(ctx context.Context, runID string) (*RunDetail, error) {

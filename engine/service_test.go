@@ -69,13 +69,16 @@ func TestAutoContinueThenPass(t *testing.T) {
 		t.Fatalf("review extension was not stored: %#v", first.ReviewExtensions)
 	}
 	var generateInput struct {
-		PreviousReview *domain.ReviewResult `json:"previous_review"`
+		Context domain.GenerateContext `json:"context"`
 	}
 	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &generateInput); err != nil {
 		t.Fatalf("failed to parse next generate input: %v", err)
 	}
-	if generateInput.PreviousReview == nil || string(generateInput.PreviousReview.Extensions["difficulty_profile"]) != `{"level":"too_easy"}` {
-		t.Fatalf("review extension was not passed to next generate: %#v", generateInput.PreviousReview)
+	if generateInput.Context.PreviousReview == nil || string(generateInput.Context.PreviousReview.Extensions["difficulty_profile"]) != `{"level":"too_easy"}` {
+		t.Fatalf("review extension was not passed to next generate: %#v", generateInput.Context.PreviousReview)
+	}
+	if generateInput.Context.BaseVersion == nil || string(generateInput.Context.BaseVersion.Content) != `{"text":"draft 1"}` {
+		t.Fatalf("base content was not passed to next generate: %#v", generateInput.Context.BaseVersion)
 	}
 	if second.BaseVersionID != first.ID || second.VersionNo != 2 || second.Depth != 2 || second.IterationPlan.Source != domain.PlanSourceAutoReview {
 		t.Fatalf("unexpected auto plan: %#v", second)
@@ -96,6 +99,120 @@ func TestAutoContinueThenPass(t *testing.T) {
 	detail, _ = service.GetRunDetail(ctx, run.ID)
 	if detail.Run.Status != domain.RunStatusSucceeded || detail.Run.FinalScore == nil || *detail.Run.FinalScore != 9.2 {
 		t.Fatalf("expected succeeded run with final score, got %#v", detail.Run)
+	}
+}
+
+func TestAutoContinueCanOmitPreviousReviewContext(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewStore()
+	executor := &testkit.Executor{}
+	adapter := &testkit.Adapter{CanAuto: true}
+	service := engine.NewService(store, executor, ports.NewSceneRegistry(adapter), engine.WithAutoContinue())
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey:        "fake",
+		Target:          domain.TargetRef{Type: "document", ID: "doc-1"},
+		IterationMode:   domain.IterationModeAuto,
+		MaxIterations:   2,
+		GenerateContext: domain.NewGenerateContextOptions(domain.WithoutReview()),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	first, err := service.StartRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("StartRun returned error: %v", err)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: first.GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft 1"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult returned error: %v", err)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if err := service.ReceiveReviewResult(ctx, engine.ReviewResultRequest{
+		JobID: detail.Versions[0].ReviewJobID,
+		Raw:   testkit.RawJSON(`{"pass":false,"score":4.5,"feedback":"needs work"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveReviewResult returned error: %v", err)
+	}
+
+	detail, err = service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if detail.Run.Status != domain.RunStatusGenerating || len(detail.Versions) != 2 {
+		t.Fatalf("expected auto-generated second version, got run=%#v versions=%d", detail.Run, len(detail.Versions))
+	}
+	var generateInput struct {
+		Context domain.GenerateContext `json:"context"`
+		Plan    domain.IterationPlan   `json:"plan"`
+	}
+	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &generateInput); err != nil {
+		t.Fatalf("failed to parse next generate input: %v", err)
+	}
+	if generateInput.Context.BaseVersion == nil {
+		t.Fatalf("expected base version context to remain enabled")
+	}
+	if generateInput.Context.PreviousReview != nil {
+		t.Fatalf("previous review context should be omitted, got input=%#v", generateInput)
+	}
+	if generateInput.Plan.Explanation != "" || strings.Contains(generateInput.Plan.Instruction, "review context") {
+		t.Fatalf("review-derived plan context should be omitted, got plan=%#v", generateInput.Plan)
+	}
+}
+
+func TestGenerateContextCanFilterReviewExtensions(t *testing.T) {
+	ctx := context.Background()
+	executor := &testkit.Executor{}
+	service := engine.NewService(memory.NewStore(), executor, ports.NewSceneRegistry(&testkit.Adapter{CanAuto: true}), engine.WithAutoContinue())
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey:        "fake",
+		Target:          domain.TargetRef{Type: "document", ID: "doc-1"},
+		IterationMode:   domain.IterationModeAuto,
+		MaxIterations:   2,
+		GenerateContext: domain.NewGenerateContextOptions(domain.WithReviewExtensions("difficulty_profile")),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	first, err := service.StartRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("StartRun returned error: %v", err)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: first.GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft 1"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult returned error: %v", err)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if err := service.ReceiveReviewResult(ctx, engine.ReviewResultRequest{
+		JobID: detail.Versions[0].ReviewJobID,
+		Raw:   testkit.RawJSON(`{"pass":false,"score":4.5,"feedback":"needs work","difficulty_profile":{"level":"too_easy"},"manual_controls":{"length_direction":"shorter"}}`),
+	}); err != nil {
+		t.Fatalf("ReceiveReviewResult returned error: %v", err)
+	}
+
+	var generateInput struct {
+		Context domain.GenerateContext `json:"context"`
+	}
+	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &generateInput); err != nil {
+		t.Fatalf("failed to parse next generate input: %v", err)
+	}
+	if generateInput.Context.PreviousReview == nil {
+		t.Fatal("expected previous review context")
+	}
+	extensions := generateInput.Context.PreviousReview.Extensions
+	if string(extensions["difficulty_profile"]) != `{"level":"too_easy"}` || len(extensions) != 1 {
+		t.Fatalf("expected filtered review extensions, got %#v", extensions)
 	}
 }
 
@@ -388,6 +505,40 @@ func TestContinueRunCanBranchFromEarlierVersion(t *testing.T) {
 	}
 	if len(detail.VersionTree) != 1 || len(detail.VersionTree[0].Children) != 2 {
 		t.Fatalf("expected a root with two children, got %#v", detail.VersionTree)
+	}
+}
+
+func TestContinueRunCanOmitGenerateContext(t *testing.T) {
+	ctx := context.Background()
+	executor := &testkit.Executor{}
+	service := engine.NewService(memory.NewStore(), executor, ports.NewSceneRegistry(&testkit.Adapter{CanAuto: true}), engine.WithAutoContinue())
+	run := createStartedRun(t, ctx, service)
+	root := completeGenerateAndReview(t, ctx, service, run.ID, true)
+
+	branch, err := service.ContinueRun(ctx, engine.ContinueRunRequest{
+		RunID:           run.ID,
+		BaseVersionID:   root.ID,
+		GenerateContext: domain.GenerateContextNone(),
+		Plan: domain.IterationPlan{
+			Source:      domain.PlanSourceManual,
+			Instruction: "Create a fresh branch without previous context.",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ContinueRun returned error: %v", err)
+	}
+
+	var generateInput struct {
+		Context domain.GenerateContext `json:"context"`
+	}
+	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &generateInput); err != nil {
+		t.Fatalf("failed to parse continue generate input: %v", err)
+	}
+	if generateInput.Context.BaseVersion != nil || generateInput.Context.PreviousReview != nil {
+		t.Fatalf("generate context should be omitted, got input=%#v", generateInput)
+	}
+	if branch.BaseVersionID != root.ID || branch.IterationPlan.BaseVersionID != root.ID {
+		t.Fatalf("lineage should remain persisted even when context is omitted: %#v", branch)
 	}
 }
 

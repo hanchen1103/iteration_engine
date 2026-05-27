@@ -47,6 +47,8 @@ Important columns:
 - `scene_key`: used to resolve the registered `SceneAdapter` after restart.
 - `target_type`, `target_id`: the business target reference.
 - `config`: scene-specific runtime config, such as model routing or seed input.
+- `generate_context`: run-level defaults for which base-version fields and
+  review fields a generate job receives.
 - `default_directives`: default structured controls for generated versions.
 - `rule_set_snapshot`: adapter `SceneSpec` captured when the run was created.
 - `max_iterations`: maximum candidate versions the run can create before auto

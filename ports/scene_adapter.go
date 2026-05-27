@@ -20,8 +20,8 @@ type SceneAdapter interface {
 type GenerateRequest struct {
 	Run            *domain.Run
 	Target         *domain.TargetSnapshot
-	BaseVersion    *domain.Version
-	PreviousReview *domain.ReviewResult
+	Context        domain.GenerateContext
+	ContextOptions domain.GenerateContextOptions
 	Plan           domain.IterationPlan
 }
 

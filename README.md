@@ -95,6 +95,8 @@ view for callers that need branch-aware UI or selection.
 - IDs are strings, so storage can use database IDs, UUIDs, or external IDs.
 - Versions form a tree. `Version.BaseVersionID` is the parent pointer, `Version.VersionNo` is the run-local creation order, and `Version.Depth` is the node depth.
 - `Run.MaxIterations` limits the total candidate versions a run can create. If neither request nor scene sets it, the engine defaults to 50.
+- `Run.GenerateContext` controls which base-version fields and review fields a generate job receives. Nil fields default to include, so existing callers keep the current behavior.
+- Use `domain.NewGenerateContextOptions(...)` or generic presets such as `domain.GenerateContextNone()` instead of hand-writing pointer booleans.
 - Auto continue is disabled by default. Construct the service with `engine.WithAutoContinue()` before accepting `IterationModeAuto` or `ReviewPolicyAutoContinue`.
 - `IterationModeManual` means generate a candidate and wait. It does not auto-review.
 - `IterationModeAuto` means generate, review, and continue on failed review when auto is enabled.
@@ -102,6 +104,8 @@ view for callers that need branch-aware UI or selection.
 - `IterationPlan.Source` is a typed string with stable built-ins: `PlanSourceInitial`, `PlanSourceManual`, `PlanSourceAutoReview`, `PlanSourceManualEdit`, `PlanSourceSubmittedCandidate`, and `PlanSourceReviewOnly`.
 - `SubmitCandidateForReview` creates a version from caller-provided content and dispatches review without a generate job.
 - `ReviewVersion` creates a new review-only child version from the selected version content, so re-review history is preserved.
+- `ContinueRunRequest.GenerateContext` can replace run defaults for one manual continuation.
+- Generate adapters receive a pre-trimmed `GenerateRequest.Context`, not the full base version or full review result.
 - Manual edits overwrite the selected version's generated content in place and clear stale review fields.
 - `SUCCEEDED` means a version passed review. `ADOPTED` means a business adapter committed it.
 - Manual `ReviewVersion` defaults failed reviews to `WAITING_MANUAL`, even for auto runs.
