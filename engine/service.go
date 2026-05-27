@@ -8,7 +8,7 @@ import (
 	"github.com/hanchen1103/iteration_engine/ports"
 )
 
-const defaultMaxDepth = 50
+const defaultMaxIterations = 50
 
 type Option func(*Service)
 
@@ -52,6 +52,9 @@ func (s *Service) adapter(sceneKey string) (ports.SceneAdapter, domain.SceneSpec
 	spec := adapter.Spec()
 	if spec.SceneKey == "" {
 		return nil, domain.SceneSpec{}, invalidError("scene adapter has empty sceneKey")
+	}
+	if spec.SceneKey != sceneKey {
+		return nil, domain.SceneSpec{}, invalidError("scene adapter sceneKey mismatch")
 	}
 	return adapter, spec, nil
 }

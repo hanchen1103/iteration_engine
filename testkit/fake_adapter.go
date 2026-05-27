@@ -10,9 +10,9 @@ import (
 )
 
 type Adapter struct {
-	CanAuto         bool
-	DefaultMaxDepth int
-	Adopted         []json.RawMessage
+	CanAuto              bool
+	DefaultMaxIterations int
+	Adopted              []json.RawMessage
 }
 
 func (a *Adapter) Spec() domain.SceneSpec {
@@ -30,11 +30,11 @@ func (a *Adapter) Spec() domain.SceneSpec {
 			RuleVersion: "v1",
 		},
 		Capability: domain.SceneCapability{
-			CanAutoContinue: a.CanAuto,
-			CanManualEdit:   true,
-			CanReviewOnly:   true,
-			CanAdopt:        true,
-			DefaultMaxDepth: a.DefaultMaxDepth,
+			CanAutoContinue:      a.CanAuto,
+			CanManualEdit:        true,
+			CanReviewOnly:        true,
+			CanAdopt:             true,
+			DefaultMaxIterations: a.DefaultMaxIterations,
 		},
 	}
 }

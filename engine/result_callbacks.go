@@ -43,6 +43,9 @@ func (s *Service) ReceiveGenerateResult(ctx context.Context, req GenerateResultR
 	if err != nil {
 		return s.failRunVersion(ctx, run, version, err.Error())
 	}
+	if content == nil {
+		return s.failRunVersion(ctx, run, version, "adapter returned nil generate result")
+	}
 
 	version.GeneratedContent = domain.CloneRawMessage(content.Content)
 	version.GeneratedArtifacts = domain.CloneArtifacts(content.Artifacts)
@@ -94,6 +97,9 @@ func (s *Service) ReceiveReviewResult(ctx context.Context, req ReviewResultReque
 	review, err := adapter.ParseReviewResult(ctx, req.Raw)
 	if err != nil {
 		return s.failRunVersion(ctx, run, version, err.Error())
+	}
+	if review == nil {
+		return s.failRunVersion(ctx, run, version, "adapter returned nil review result")
 	}
 	if len(review.RawJSON) == 0 {
 		review.RawJSON = domain.CloneRawMessage(req.Raw)

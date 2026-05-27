@@ -44,8 +44,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*domain.
 		Target:            req.Target,
 		Status:            domain.RunStatusPending,
 		IterationMode:     mode,
-		MaxDepth:          state.ResolveMaxDepth(req.MaxDepth, spec.Capability.DefaultMaxDepth, defaultMaxDepth),
-		MaxVersions:       req.MaxVersions,
+		MaxIterations:     state.ResolveMaxIterations(req.MaxIterations, spec.Capability.DefaultMaxIterations, defaultMaxIterations),
 		Config:            domain.CloneRawMessage(req.Config),
 		DefaultDirectives: domain.CloneDirectives(req.DefaultDirectives),
 		RuleSetSnapshot:   ruleSetSnapshot,
@@ -94,16 +93,8 @@ func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*dom
 	if run.Status == domain.RunStatusAdopted || run.Status == domain.RunStatusFailed {
 		return nil, conflictError("run cannot be continued")
 	}
-	if req.MaxDepth > run.MaxDepth {
-		run.MaxDepth = req.MaxDepth
-		run.UpdatedBy = strings.TrimSpace(req.Actor)
-		run.UpdatedAt = s.now()
-		if err := s.store.UpdateRun(ctx, run); err != nil {
-			return nil, err
-		}
-	}
-	if req.MaxVersions > run.MaxVersions {
-		run.MaxVersions = req.MaxVersions
+	if req.MaxIterations > run.MaxIterations {
+		run.MaxIterations = req.MaxIterations
 		run.UpdatedBy = strings.TrimSpace(req.Actor)
 		run.UpdatedAt = s.now()
 		if err := s.store.UpdateRun(ctx, run); err != nil {
@@ -118,7 +109,7 @@ func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*dom
 	if len(base.EffectiveContent()) == 0 {
 		return nil, invalidError("base version has no effective content")
 	}
-	if err := state.EnsureCanCreateGeneratedVersion(run, base); err != nil {
+	if err := state.EnsureCanCreateGeneratedVersion(run); err != nil {
 		return nil, err
 	}
 

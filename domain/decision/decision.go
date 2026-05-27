@@ -18,14 +18,14 @@ func Decide(run *model.Run, version *model.Version, review *model.ReviewResult) 
 	case model.ReviewPolicyWaitManual:
 		return Decision{Type: model.DecisionWaitManual}
 	case model.ReviewPolicyAutoContinue:
-		if run.MaxDepth > 0 && version.Depth >= run.MaxDepth {
-			return Decision{Type: model.DecisionMaxDepth}
+		if run.MaxIterations > 0 && run.VersionCount >= run.MaxIterations {
+			return Decision{Type: model.DecisionMaxIterations}
 		}
 		return Decision{Type: model.DecisionAutoContinue}
 	default:
 		if model.NormalizeIterationMode(run.IterationMode) == model.IterationModeAuto {
-			if run.MaxDepth > 0 && version.Depth >= run.MaxDepth {
-				return Decision{Type: model.DecisionMaxDepth}
+			if run.MaxIterations > 0 && run.VersionCount >= run.MaxIterations {
+				return Decision{Type: model.DecisionMaxIterations}
 			}
 			return Decision{Type: model.DecisionAutoContinue}
 		}

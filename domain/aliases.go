@@ -43,7 +43,7 @@ const (
 	RunStatusReviewing     = model.RunStatusReviewing
 	RunStatusWaitingManual = model.RunStatusWaitingManual
 	RunStatusSucceeded     = model.RunStatusSucceeded
-	RunStatusMaxDepth      = model.RunStatusMaxDepth
+	RunStatusMaxIterations = model.RunStatusMaxIterations
 	RunStatusFailed        = model.RunStatusFailed
 	RunStatusAdopted       = model.RunStatusAdopted
 
@@ -62,16 +62,18 @@ const (
 	ReviewPolicyWaitManual   = model.ReviewPolicyWaitManual
 	ReviewPolicyAutoContinue = model.ReviewPolicyAutoContinue
 
-	PlanSourceInitial    = model.PlanSourceInitial
-	PlanSourceManual     = model.PlanSourceManual
-	PlanSourceAutoReview = model.PlanSourceAutoReview
-	PlanSourceManualEdit = model.PlanSourceManualEdit
+	PlanSourceInitial            = model.PlanSourceInitial
+	PlanSourceManual             = model.PlanSourceManual
+	PlanSourceAutoReview         = model.PlanSourceAutoReview
+	PlanSourceManualEdit         = model.PlanSourceManualEdit
+	PlanSourceSubmittedCandidate = model.PlanSourceSubmittedCandidate
+	PlanSourceReviewOnly         = model.PlanSourceReviewOnly
 
-	DecisionPass         = model.DecisionPass
-	DecisionAutoContinue = model.DecisionAutoContinue
-	DecisionWaitManual   = model.DecisionWaitManual
-	DecisionMaxDepth     = model.DecisionMaxDepth
-	DecisionError        = model.DecisionError
+	DecisionPass          = model.DecisionPass
+	DecisionAutoContinue  = model.DecisionAutoContinue
+	DecisionWaitManual    = model.DecisionWaitManual
+	DecisionMaxIterations = model.DecisionMaxIterations
+	DecisionError         = model.DecisionError
 
 	ErrorCodeInvalid   = model.ErrorCodeInvalid
 	ErrorCodeNotFound  = model.ErrorCodeNotFound

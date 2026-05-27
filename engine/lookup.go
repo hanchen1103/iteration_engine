@@ -32,6 +32,13 @@ func (s *Service) resolveBaseVersion(ctx context.Context, run *domain.Run, versi
 	return versions[len(versions)-1], nil
 }
 
+func (s *Service) resolveOptionalBaseVersion(ctx context.Context, run *domain.Run, versionID string, versionNo int) (*domain.Version, error) {
+	if strings.TrimSpace(versionID) == "" && versionNo <= 0 {
+		return nil, nil
+	}
+	return s.resolveBaseVersion(ctx, run, versionID, versionNo)
+}
+
 func (s *Service) runVersionAdapter(ctx context.Context, runID string, versionID string) (*domain.Run, *domain.Version, ports.SceneAdapter, error) {
 	run, err := s.getRun(ctx, strings.TrimSpace(runID))
 	if err != nil {

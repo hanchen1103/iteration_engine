@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/hanchen1103/iteration_engine/domain"
@@ -23,7 +24,7 @@ func TestAutoContinueThenPass(t *testing.T) {
 		SceneKey:      "fake",
 		Target:        domain.TargetRef{Type: "document", ID: "doc-1"},
 		IterationMode: domain.IterationModeAuto,
-		MaxDepth:      2,
+		MaxIterations: 2,
 	})
 	if err != nil {
 		t.Fatalf("CreateRun returned error: %v", err)
@@ -131,7 +132,55 @@ func TestManualRunWaitsAfterGenerate(t *testing.T) {
 	}
 }
 
-func TestManualEditCreatesChildVersionWithoutOverwritingGenerated(t *testing.T) {
+func TestSubmitCandidateForReviewCreatesVersionWithoutGenerate(t *testing.T) {
+	ctx := context.Background()
+	executor := &testkit.Executor{}
+	service := engine.NewService(memory.NewStore(), executor, ports.NewSceneRegistry(&testkit.Adapter{}))
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	version, err := service.SubmitCandidateForReview(ctx, engine.SubmitCandidateForReviewRequest{
+		RunID:   run.ID,
+		Content: testkit.RawJSON(`{"text":"seed candidate"}`),
+		Actor:   "admin",
+	})
+	if err != nil {
+		t.Fatalf("SubmitCandidateForReview returned error: %v", err)
+	}
+	if version.VersionNo != 1 || version.GenerateJobID != "" || version.ReviewJobID == "" {
+		t.Fatalf("expected review-only first version, got %#v", version)
+	}
+	if string(version.GeneratedContent) != `{"text":"seed candidate"}` || version.IterationPlan.Source != domain.PlanSourceSubmittedCandidate {
+		t.Fatalf("unexpected submitted candidate version: %#v", version)
+	}
+	if len(executor.Jobs) != 1 || executor.Jobs[0].TaskName != "fake_review" {
+		t.Fatalf("expected only review job to be submitted, got %#v", executor.Jobs)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if detail.Run.Status != domain.RunStatusReviewing || detail.Run.VersionCount != 1 {
+		t.Fatalf("unexpected run after candidate submit: %#v", detail.Run)
+	}
+	if err := service.ReceiveReviewResult(ctx, engine.ReviewResultRequest{
+		JobID: version.ReviewJobID,
+		Raw:   testkit.RawJSON(`{"pass":true,"score":8.5,"feedback":"seed ready"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveReviewResult returned error: %v", err)
+	}
+	detail, _ = service.GetRunDetail(ctx, run.ID)
+	if detail.Run.Status != domain.RunStatusSucceeded || len(detail.Versions) != 1 {
+		t.Fatalf("expected submitted candidate to pass, got run=%#v versions=%d", detail.Run, len(detail.Versions))
+	}
+}
+
+func TestManualEditOverwritesGeneratedContentInPlace(t *testing.T) {
 	ctx := context.Background()
 	store := memory.NewStore()
 	executor := &testkit.Executor{}
@@ -150,28 +199,28 @@ func TestManualEditCreatesChildVersionWithoutOverwritingGenerated(t *testing.T) 
 	if err != nil {
 		t.Fatalf("EditVersion returned error: %v", err)
 	}
-	if edited.BaseVersionID != version.ID || edited.VersionNo != 2 || edited.Depth != version.Depth+1 {
-		t.Fatalf("manual edit should create a child version, got %#v", edited)
+	if edited.ID != version.ID || edited.VersionNo != version.VersionNo || edited.BaseVersionID != version.BaseVersionID {
+		t.Fatalf("manual edit should update the same version, got %#v", edited)
 	}
 	detail, _ := service.GetRunDetail(ctx, run.ID)
-	original := detail.Versions[0]
-	if string(original.GeneratedContent) != `{"text":"generated"}` {
-		t.Fatalf("generated content was overwritten: %s", original.GeneratedContent)
+	if len(detail.Versions) != 1 {
+		t.Fatalf("manual edit should not create a new version, got %d", len(detail.Versions))
 	}
-	if len(edited.GeneratedContent) != 0 {
-		t.Fatalf("edited child should not pretend to be generated: %s", edited.GeneratedContent)
+	edited = detail.Versions[0]
+	if string(edited.GeneratedContent) != `{"text":"edited"}` {
+		t.Fatalf("generated content was not overwritten: %s", edited.GeneratedContent)
 	}
 	if string(edited.EffectiveContent()) != `{"text":"edited"}` {
 		t.Fatalf("effective content did not use edit: %s", edited.EffectiveContent())
 	}
-	if edited.ReviewPass != nil || edited.Status != domain.VersionStatusEdited {
-		t.Fatalf("edit should clear stale review and mark edited: %#v", edited)
+	if edited.ReviewPass != nil || edited.ReviewJobID != "" || edited.Status != domain.VersionStatusGenerated {
+		t.Fatalf("edit should clear stale review and mark generated: %#v", edited)
 	}
 	if detail.Run.Status != domain.RunStatusWaitingManual {
 		t.Fatalf("edit should move succeeded run back to waiting manual, got %#v", detail.Run.Status)
 	}
-	if len(detail.VersionTree) != 1 || len(detail.VersionTree[0].Children) != 1 {
-		t.Fatalf("expected edited version to appear as child in version tree: %#v", detail.VersionTree)
+	if len(detail.VersionTree) != 1 || len(detail.VersionTree[0].Children) != 0 {
+		t.Fatalf("expected edit to keep a single root version: %#v", detail.VersionTree)
 	}
 
 	reviewed, err := service.ReviewVersion(ctx, engine.ReviewVersionRequest{
@@ -181,8 +230,11 @@ func TestManualEditCreatesChildVersionWithoutOverwritingGenerated(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ReviewVersion returned error: %v", err)
 	}
-	if reviewed.ReviewJobID == "" {
-		t.Fatalf("review job was not submitted: %#v", reviewed)
+	if reviewed.ID == edited.ID || reviewed.BaseVersionID != edited.ID || reviewed.VersionNo != 2 || reviewed.ReviewJobID == "" {
+		t.Fatalf("review should create a child review version, got %#v", reviewed)
+	}
+	if string(reviewed.GeneratedContent) != `{"text":"edited"}` {
+		t.Fatalf("review child did not copy edited content: %s", reviewed.GeneratedContent)
 	}
 	if err := service.ReceiveReviewResult(ctx, engine.ReviewResultRequest{
 		JobID: reviewed.ReviewJobID,
@@ -192,17 +244,17 @@ func TestManualEditCreatesChildVersionWithoutOverwritingGenerated(t *testing.T) 
 	}
 	result, err := service.AdoptVersion(ctx, engine.AdoptVersionRequest{
 		RunID:     run.ID,
-		VersionID: edited.ID,
+		VersionID: reviewed.ID,
 		Actor:     "admin",
 	})
 	if err != nil {
 		t.Fatalf("AdoptVersion returned error: %v", err)
 	}
-	if result.VersionID != edited.ID || len(adapter.Adopted) != 1 || string(adapter.Adopted[0]) != `{"text":"edited"}` {
+	if result.VersionID != reviewed.ID || len(adapter.Adopted) != 1 || string(adapter.Adopted[0]) != `{"text":"edited"}` {
 		t.Fatalf("adopt did not use edited effective content: result=%#v adopted=%s", result, adapter.Adopted)
 	}
 	detail, _ = service.GetRunDetail(ctx, run.ID)
-	if detail.Run.Status != domain.RunStatusAdopted || detail.Run.AdoptedVersionID != edited.ID {
+	if detail.Run.Status != domain.RunStatusAdopted || detail.Run.AdoptedVersionID != reviewed.ID {
 		t.Fatalf("run was not adopted correctly: %#v", detail.Run)
 	}
 }
@@ -239,18 +291,21 @@ func TestReviewVersionDefaultsToWaitManualOnFail(t *testing.T) {
 		t.Fatalf("manual review failure should wait for manual action, got %#v", detail.Run)
 	}
 	if len(detail.Versions) != 2 {
-		t.Fatalf("manual review failure should not auto-create a version, got %d", len(detail.Versions))
+		t.Fatalf("manual review should create exactly one review-only version, got %d", len(detail.Versions))
+	}
+	if detail.Versions[1].BaseVersionID != edited.ID || detail.Versions[1].IterationPlan.Source != domain.PlanSourceReviewOnly {
+		t.Fatalf("unexpected review-only version: %#v", detail.Versions[1])
 	}
 }
 
-func TestAutoContinueStopsAtMaxDepth(t *testing.T) {
+func TestAutoContinueStopsAtMaxIterations(t *testing.T) {
 	ctx := context.Background()
 	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&testkit.Adapter{CanAuto: true}), engine.WithAutoContinue())
 	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
 		SceneKey:      "fake",
 		Target:        domain.TargetRef{Type: "document", ID: "doc-1"},
 		IterationMode: domain.IterationModeAuto,
-		MaxDepth:      1,
+		MaxIterations: 1,
 	})
 	if err != nil {
 		t.Fatalf("CreateRun returned error: %v", err)
@@ -273,8 +328,8 @@ func TestAutoContinueStopsAtMaxDepth(t *testing.T) {
 		t.Fatalf("ReceiveReviewResult returned error: %v", err)
 	}
 	detail, _ = service.GetRunDetail(ctx, run.ID)
-	if detail.Run.Status != domain.RunStatusMaxDepth || len(detail.Versions) != 1 {
-		t.Fatalf("expected max depth without auto child, got run=%#v versions=%d", detail.Run, len(detail.Versions))
+	if detail.Run.Status != domain.RunStatusMaxIterations || len(detail.Versions) != 1 {
+		t.Fatalf("expected max iterations without auto child, got run=%#v versions=%d", detail.Run, len(detail.Versions))
 	}
 }
 
@@ -397,8 +452,8 @@ func TestCreateRunDefaultsToManualAndRequiresAutoOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRun manual default returned error: %v", err)
 	}
-	if run.IterationMode != domain.IterationModeManual || run.MaxDepth != 50 {
-		t.Fatalf("expected safe manual defaults with max depth 50, got %#v", run)
+	if run.IterationMode != domain.IterationModeManual || run.MaxIterations != 50 {
+		t.Fatalf("expected safe manual defaults with max iterations 50, got %#v", run)
 	}
 
 	_, err = service.CreateRun(ctx, engine.CreateRunRequest{
@@ -411,13 +466,171 @@ func TestCreateRunDefaultsToManualAndRequiresAutoOption(t *testing.T) {
 	}
 }
 
+func TestAdapterRejectsSceneKeyMismatch(t *testing.T) {
+	ctx := context.Background()
+	adapter := &sceneKeyChangingAdapter{}
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(adapter))
+
+	_, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err == nil {
+		t.Fatal("expected scene key mismatch error")
+	}
+	if !strings.Contains(err.Error(), "sceneKey mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAdapterNilTargetReturnsClearError(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&nilTargetAdapter{}))
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	_, err = service.StartRun(ctx, run.ID)
+	if err == nil || !strings.Contains(err.Error(), "adapter returned nil target") {
+		t.Fatalf("expected nil target error, got %v", err)
+	}
+}
+
+func TestAdapterNilGenerateJobFailsClearly(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&nilGenerateJobAdapter{}))
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	_, err = service.StartRun(ctx, run.ID)
+	if err == nil || !strings.Contains(err.Error(), "adapter returned nil generate job request") {
+		t.Fatalf("expected nil generate job error, got %v", err)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if detail.Run.Status != domain.RunStatusFailed || len(detail.Versions) != 1 || detail.Versions[0].Status != domain.VersionStatusFailed {
+		t.Fatalf("expected failed run/version, got run=%#v versions=%#v", detail.Run, detail.Versions)
+	}
+}
+
+func TestAdapterNilGenerateResultFailsClearly(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&nilGenerateResultAdapter{}))
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	if _, err := service.StartRun(ctx, run.ID); err != nil {
+		t.Fatalf("StartRun returned error: %v", err)
+	}
+
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	err = service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: detail.Versions[0].GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "adapter returned nil generate result") {
+		t.Fatalf("expected nil generate result error, got %v", err)
+	}
+	detail, _ = service.GetRunDetail(ctx, run.ID)
+	if detail.Run.Status != domain.RunStatusFailed || detail.Versions[0].Status != domain.VersionStatusFailed {
+		t.Fatalf("expected failed run/version, got run=%#v version=%#v", detail.Run, detail.Versions[0])
+	}
+}
+
+func TestAdapterNilReviewJobFailsClearly(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&nilReviewJobAdapter{}))
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	version, err := service.StartRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("StartRun returned error: %v", err)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: version.GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult returned error: %v", err)
+	}
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	version = detail.Versions[0]
+
+	_, err = service.ReviewVersion(ctx, engine.ReviewVersionRequest{
+		RunID:     run.ID,
+		VersionID: version.ID,
+	})
+	if err == nil || !strings.Contains(err.Error(), "adapter returned nil review job request") {
+		t.Fatalf("expected nil review job error, got %v", err)
+	}
+}
+
+func TestAdapterNilReviewResultFailsClearly(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(
+		memory.NewStore(),
+		&testkit.Executor{},
+		ports.NewSceneRegistry(&nilReviewResultAdapter{Adapter: testkit.Adapter{CanAuto: true}}),
+		engine.WithAutoContinue(),
+	)
+	run := createStartedRun(t, ctx, service)
+
+	detail, err := service.GetRunDetail(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetRunDetail returned error: %v", err)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: detail.Versions[0].GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult returned error: %v", err)
+	}
+	detail, _ = service.GetRunDetail(ctx, run.ID)
+	err = service.ReceiveReviewResult(ctx, engine.ReviewResultRequest{
+		JobID: detail.Versions[0].ReviewJobID,
+		Raw:   testkit.RawJSON(`{"pass":true}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "adapter returned nil review result") {
+		t.Fatalf("expected nil review result error, got %v", err)
+	}
+	detail, _ = service.GetRunDetail(ctx, run.ID)
+	if detail.Run.Status != domain.RunStatusFailed || detail.Versions[0].Status != domain.VersionStatusFailed {
+		t.Fatalf("expected failed run/version, got run=%#v version=%#v", detail.Run, detail.Versions[0])
+	}
+}
+
 func createStartedRun(t *testing.T, ctx context.Context, service *engine.Service) *domain.Run {
 	t.Helper()
 	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
 		SceneKey:      "fake",
 		Target:        domain.TargetRef{Type: "document", ID: "doc-1"},
 		IterationMode: domain.IterationModeAuto,
-		MaxDepth:      3,
+		MaxIterations: 3,
 	})
 	if err != nil {
 		t.Fatalf("CreateRun returned error: %v", err)
@@ -426,6 +639,60 @@ func createStartedRun(t *testing.T, ctx context.Context, service *engine.Service
 		t.Fatalf("StartRun returned error: %v", err)
 	}
 	return run
+}
+
+type sceneKeyChangingAdapter struct {
+	testkit.Adapter
+	calls int
+}
+
+func (a *sceneKeyChangingAdapter) Spec() domain.SceneSpec {
+	a.calls++
+	spec := a.Adapter.Spec()
+	if a.calls > 1 {
+		spec.SceneKey = "other"
+	}
+	return spec
+}
+
+type nilTargetAdapter struct {
+	testkit.Adapter
+}
+
+func (a *nilTargetAdapter) LoadTarget(ctx context.Context, target domain.TargetRef) (*domain.TargetSnapshot, error) {
+	return nil, nil
+}
+
+type nilGenerateJobAdapter struct {
+	testkit.Adapter
+}
+
+func (a *nilGenerateJobAdapter) BuildGenerateJob(ctx context.Context, req ports.GenerateRequest) (*ports.JobRequest, error) {
+	return nil, nil
+}
+
+type nilGenerateResultAdapter struct {
+	testkit.Adapter
+}
+
+func (a *nilGenerateResultAdapter) ParseGenerateResult(ctx context.Context, raw []byte) (*domain.VersionContent, error) {
+	return nil, nil
+}
+
+type nilReviewJobAdapter struct {
+	testkit.Adapter
+}
+
+func (a *nilReviewJobAdapter) BuildReviewJob(ctx context.Context, req ports.ReviewRequest) (*ports.JobRequest, error) {
+	return nil, nil
+}
+
+type nilReviewResultAdapter struct {
+	testkit.Adapter
+}
+
+func (a *nilReviewResultAdapter) ParseReviewResult(ctx context.Context, raw []byte) (*domain.ReviewResult, error) {
+	return nil, nil
 }
 
 func completeGenerateAndReview(t *testing.T, ctx context.Context, service *engine.Service, runID string, pass bool) *domain.Version {

@@ -11,8 +11,7 @@ type Run struct {
 	Target            TargetRef            `json:"target"`
 	Status            RunStatus            `json:"status"`
 	IterationMode     IterationMode        `json:"iterationMode"`
-	MaxDepth          int                  `json:"maxDepth"`
-	MaxVersions       int                  `json:"maxVersions,omitempty"`
+	MaxIterations     int                  `json:"maxIterations"`
 	VersionCount      int                  `json:"versionCount"`
 	AdoptedVersionID  string               `json:"adoptedVersionID,omitempty"`
 	Config            json.RawMessage      `json:"config,omitempty"`

@@ -16,8 +16,8 @@ func (s *Service) applyReviewDecision(ctx context.Context, run *domain.Run, vers
 	case domain.DecisionPass:
 		state.ApplyReviewedRunState(run, domain.RunStatusSucceeded, review, now)
 		return s.store.UpdateRun(ctx, run)
-	case domain.DecisionMaxDepth:
-		state.ApplyReviewedRunState(run, domain.RunStatusMaxDepth, review, now)
+	case domain.DecisionMaxIterations:
+		state.ApplyReviewedRunState(run, domain.RunStatusMaxIterations, review, now)
 		return s.store.UpdateRun(ctx, run)
 	case domain.DecisionWaitManual:
 		state.ApplyReviewedRunState(run, domain.RunStatusWaitingManual, review, now)

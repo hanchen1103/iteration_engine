@@ -17,12 +17,15 @@ func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *doma
 	if err := validatePlan(plan); err != nil {
 		return nil, err
 	}
-	if err := state.EnsureCanCreateGeneratedVersion(run, base); err != nil {
+	if err := state.EnsureCanCreateGeneratedVersion(run); err != nil {
 		return nil, err
 	}
 	target, err := adapter.LoadTarget(ctx, run.Target)
 	if err != nil {
 		return nil, err
+	}
+	if target == nil {
+		return nil, invalidError("adapter returned nil target")
 	}
 
 	now := s.now()
@@ -67,6 +70,9 @@ func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *doma
 	if err != nil {
 		_ = s.failRunVersion(ctx, run, version, err.Error())
 		return nil, err
+	}
+	if jobReq == nil {
+		return nil, s.failRunVersion(ctx, run, version, "adapter returned nil generate job request")
 	}
 	fillJobRequest(jobReq, run, version, spec.GenerateRule.Role, "generate")
 	version.GenerateInputJSON = domain.CloneRawMessage(jobReq.Input)

@@ -8,7 +8,7 @@ const (
 	RunStatusReviewing     RunStatus = "REVIEWING"
 	RunStatusWaitingManual RunStatus = "WAITING_MANUAL"
 	RunStatusSucceeded     RunStatus = "SUCCEEDED"
-	RunStatusMaxDepth      RunStatus = "MAX_DEPTH"
+	RunStatusMaxIterations RunStatus = "MAX_ITERATIONS"
 	RunStatusFailed        RunStatus = "FAILED"
 	RunStatusAdopted       RunStatus = "ADOPTED"
 )
@@ -77,9 +77,9 @@ func NormalizeReviewPolicy(value ReviewPolicy) ReviewPolicy {
 type DecisionType string
 
 const (
-	DecisionPass         DecisionType = "PASS"
-	DecisionAutoContinue DecisionType = "FAIL_AUTO_CONTINUE"
-	DecisionWaitManual   DecisionType = "FAIL_WAIT_MANUAL"
-	DecisionMaxDepth     DecisionType = "FAIL_MAX_DEPTH"
-	DecisionError        DecisionType = "ERROR"
+	DecisionPass          DecisionType = "PASS"
+	DecisionAutoContinue  DecisionType = "FAIL_AUTO_CONTINUE"
+	DecisionWaitManual    DecisionType = "FAIL_WAIT_MANUAL"
+	DecisionMaxIterations DecisionType = "FAIL_MAX_ITERATIONS"
+	DecisionError         DecisionType = "ERROR"
 )

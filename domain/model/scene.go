@@ -16,9 +16,9 @@ type SceneSpec struct {
 }
 
 type SceneCapability struct {
-	CanAutoContinue bool `json:"canAutoContinue"`
-	CanManualEdit   bool `json:"canManualEdit"`
-	CanReviewOnly   bool `json:"canReviewOnly"`
-	CanAdopt        bool `json:"canAdopt"`
-	DefaultMaxDepth int  `json:"defaultMaxDepth"`
+	CanAutoContinue      bool `json:"canAutoContinue"`
+	CanManualEdit        bool `json:"canManualEdit"`
+	CanReviewOnly        bool `json:"canReviewOnly"`
+	CanAdopt             bool `json:"canAdopt"`
+	DefaultMaxIterations int  `json:"defaultMaxIterations"`
 }

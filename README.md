@@ -21,6 +21,10 @@ iteration_engine/
     internal/state/   Pure state mutation helpers used by the service.
   store/memory/
     store.go, run_store.go, version_store.go, event_store.go
+  store/sql/mysql/
+    schema.sql       Recommended production table schema.
+  docs/
+    mysql_store.md   Production Store mapping and migration notes.
   testkit/
     fake_adapter.go, fake_executor.go, json.go
 ```
@@ -81,7 +85,7 @@ Callbacks are intentionally explicit:
 This keeps v0 independent from any specific queue, worker, LLM platform, or HTTP callback shape.
 
 `MANUAL` runs stop after generate and enter `WAITING_MANUAL`. `AUTO` runs dispatch review after
-generate and may continue until pass or max depth.
+generate and may continue until pass or max iterations.
 
 `GetRunDetail` returns both a flat `Versions` list sorted by `VersionNo` and a `VersionTree`
 view for callers that need branch-aware UI or selection.
@@ -90,14 +94,15 @@ view for callers that need branch-aware UI or selection.
 
 - IDs are strings, so storage can use database IDs, UUIDs, or external IDs.
 - Versions form a tree. `Version.BaseVersionID` is the parent pointer, `Version.VersionNo` is the run-local creation order, and `Version.Depth` is the node depth.
-- `Run.MaxDepth` limits generated continuation depth. If neither request nor scene sets it, the engine defaults to 50.
+- `Run.MaxIterations` limits the total candidate versions a run can create. If neither request nor scene sets it, the engine defaults to 50.
 - Auto continue is disabled by default. Construct the service with `engine.WithAutoContinue()` before accepting `IterationModeAuto` or `ReviewPolicyAutoContinue`.
 - `IterationModeManual` means generate a candidate and wait. It does not auto-review.
 - `IterationModeAuto` means generate, review, and continue on failed review when auto is enabled.
-- `Run.MaxVersions` optionally limits total version nodes.
 - Version content is `json.RawMessage`; the engine does not inspect business payloads.
-- `IterationPlan.Source` is a typed string with stable built-ins: `PlanSourceInitial`, `PlanSourceManual`, `PlanSourceAutoReview`, and `PlanSourceManualEdit`.
-- Manual edits create child versions and never overwrite generated content. Consumers use `Version.EffectiveContent()`.
+- `IterationPlan.Source` is a typed string with stable built-ins: `PlanSourceInitial`, `PlanSourceManual`, `PlanSourceAutoReview`, `PlanSourceManualEdit`, `PlanSourceSubmittedCandidate`, and `PlanSourceReviewOnly`.
+- `SubmitCandidateForReview` creates a version from caller-provided content and dispatches review without a generate job.
+- `ReviewVersion` creates a new review-only child version from the selected version content, so re-review history is preserved.
+- Manual edits overwrite the selected version's generated content in place and clear stale review fields.
 - `SUCCEEDED` means a version passed review. `ADOPTED` means a business adapter committed it.
 - Manual `ReviewVersion` defaults failed reviews to `WAITING_MANUAL`, even for auto runs.
 - `ReviewResult.Extensions` carries structured business-specific review fields. `ReviewResult.RawJSON` keeps the full raw review output for audit/debug.
@@ -126,7 +131,7 @@ run, _ := service.CreateRun(ctx, iterengine.CreateRunRequest{
     SceneKey: "my_scene",
     Target: domain.TargetRef{Type: "article", ID: "123"},
     IterationMode: domain.IterationModeManual,
-    MaxDepth: 3,
+    MaxIterations: 3,
     DefaultDirectives: []domain.IterationDirective{
         domain.IntDirective("difficulty", 1, "1 means harder, -1 means easier."),
     },
@@ -142,4 +147,5 @@ _ = service.ReceiveGenerateResult(ctx, iterengine.GenerateResultRequest{
 ```
 
 The in-memory store is for tests and local wiring. Production services should implement
-`ports.Store` with their own database and transaction policy.
+`ports.Store` with their own database and transaction policy. A recommended MySQL
+baseline is provided in `store/sql/mysql/schema.sql`; see `docs/mysql_store.md`.

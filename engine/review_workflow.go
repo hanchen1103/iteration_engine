@@ -27,6 +27,9 @@ func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *
 		if err != nil {
 			return err
 		}
+		if target == nil {
+			return invalidError("adapter returned nil target")
+		}
 	}
 
 	jobReq, err := adapter.BuildReviewJob(ctx, ports.ReviewRequest{
@@ -38,6 +41,9 @@ func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *
 	})
 	if err != nil {
 		return s.failRunVersion(ctx, run, version, err.Error())
+	}
+	if jobReq == nil {
+		return s.failRunVersion(ctx, run, version, "adapter returned nil review job request")
 	}
 	fillJobRequest(jobReq, run, version, spec.ReviewRule.Role, "review")
 
