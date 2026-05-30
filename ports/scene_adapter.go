@@ -19,7 +19,9 @@ type SceneAdapter interface {
 
 type GenerateRequest struct {
 	Run            *domain.Run
+	Version        *domain.Version
 	Target         *domain.TargetSnapshot
+	Config         json.RawMessage
 	Context        domain.GenerateContext
 	ContextOptions domain.GenerateContextOptions
 	Plan           domain.IterationPlan
@@ -29,6 +31,7 @@ type ReviewRequest struct {
 	Run       *domain.Run
 	Target    *domain.TargetSnapshot
 	Version   *domain.Version
+	Config    json.RawMessage
 	Content   json.RawMessage
 	Artifacts []domain.Artifact
 }

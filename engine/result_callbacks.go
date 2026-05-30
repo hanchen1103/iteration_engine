@@ -58,7 +58,7 @@ func (s *Service) ReceiveGenerateResult(ctx context.Context, req GenerateResultR
 	}
 	s.recordEvent(ctx, domain.EventGenerateReceived, run.ID, version.ID, "", "", nil)
 	if domain.NormalizeIterationMode(run.IterationMode) == domain.IterationModeAuto && s.allowAutoContinue && spec.Capability.CanAutoContinue {
-		return s.dispatchReview(ctx, run, version, domain.ReviewPolicyRunDefault, "")
+		return s.dispatchReview(ctx, run, version, domain.ReviewPolicyRunDefault, nil, "")
 	}
 	state.ApplyGeneratedRunState(run, version, now)
 	return s.store.UpdateRun(ctx, run)

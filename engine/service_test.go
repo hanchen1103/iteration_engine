@@ -249,6 +249,119 @@ func TestManualRunWaitsAfterGenerate(t *testing.T) {
 	}
 }
 
+func TestVersionConfigsAreStoredAndPassedToAdapter(t *testing.T) {
+	ctx := context.Background()
+	executor := &testkit.Executor{}
+	service := engine.NewService(memory.NewStore(), executor, ports.NewSceneRegistry(&testkit.Adapter{}))
+
+	run, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+		Config: domain.Config{
+			"model": "run-default",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun returned error: %v", err)
+	}
+	first, err := service.StartRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("StartRun returned error: %v", err)
+	}
+	if string(first.GenerateConfig) != `{"model":"run-default"}` {
+		t.Fatalf("first version should snapshot run config, got %s", first.GenerateConfig)
+	}
+	var firstGenerateInput struct {
+		GenerateConfig json.RawMessage `json:"generate_config"`
+	}
+	if err := json.Unmarshal(executor.Jobs[0].Input, &firstGenerateInput); err != nil {
+		t.Fatalf("parse first generate input: %v", err)
+	}
+	if string(firstGenerateInput.GenerateConfig) != `{"model":"run-default"}` {
+		t.Fatalf("adapter did not receive default generate config: %s", firstGenerateInput.GenerateConfig)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: first.GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft 1"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult returned error: %v", err)
+	}
+
+	second, err := service.ContinueRun(ctx, engine.ContinueRunRequest{
+		RunID:         run.ID,
+		BaseVersionID: first.ID,
+		GenerateConfig: domain.Config{
+			"model": "generate-override",
+		},
+		Plan: domain.IterationPlan{Source: domain.PlanSourceManual, Instruction: "try another model"},
+	})
+	if err != nil {
+		t.Fatalf("ContinueRun returned error: %v", err)
+	}
+	if string(second.GenerateConfig) != `{"model":"generate-override"}` {
+		t.Fatalf("second version should store override generate config, got %s", second.GenerateConfig)
+	}
+	var secondGenerateInput struct {
+		GenerateConfig json.RawMessage `json:"generate_config"`
+	}
+	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &secondGenerateInput); err != nil {
+		t.Fatalf("parse second generate input: %v", err)
+	}
+	if string(secondGenerateInput.GenerateConfig) != `{"model":"generate-override"}` {
+		t.Fatalf("adapter did not receive override generate config: %s", secondGenerateInput.GenerateConfig)
+	}
+	if err := service.ReceiveGenerateResult(ctx, engine.GenerateResultRequest{
+		JobID: second.GenerateJobID,
+		Raw:   testkit.RawJSON(`{"text":"draft 2"}`),
+	}); err != nil {
+		t.Fatalf("ReceiveGenerateResult second returned error: %v", err)
+	}
+
+	reviewed, err := service.ReviewVersion(ctx, engine.ReviewVersionRequest{
+		RunID:     run.ID,
+		VersionID: second.ID,
+		ReviewConfig: domain.Config{
+			"model": "review-override",
+		},
+		OnFail: domain.ReviewPolicyWaitManual,
+		Plan:   domain.IterationPlan{Source: domain.PlanSourceReviewOnly, Instruction: "review with another model"},
+	})
+	if err != nil {
+		t.Fatalf("ReviewVersion returned error: %v", err)
+	}
+	if string(reviewed.GenerateConfig) != `{"model":"generate-override"}` {
+		t.Fatalf("review-only version should retain base generate config, got %s", reviewed.GenerateConfig)
+	}
+	if string(reviewed.ReviewConfig) != `{"model":"review-override"}` {
+		t.Fatalf("review-only version should store review config, got %s", reviewed.ReviewConfig)
+	}
+	var reviewInput struct {
+		ReviewConfig json.RawMessage `json:"review_config"`
+	}
+	if err := json.Unmarshal(executor.Jobs[len(executor.Jobs)-1].Input, &reviewInput); err != nil {
+		t.Fatalf("parse review input: %v", err)
+	}
+	if string(reviewInput.ReviewConfig) != `{"model":"review-override"}` {
+		t.Fatalf("adapter did not receive review config: %s", reviewInput.ReviewConfig)
+	}
+}
+
+func TestVersionConfigRejectsNonJSONSerializableValues(t *testing.T) {
+	ctx := context.Background()
+	service := engine.NewService(memory.NewStore(), &testkit.Executor{}, ports.NewSceneRegistry(&testkit.Adapter{}))
+
+	_, err := service.CreateRun(ctx, engine.CreateRunRequest{
+		SceneKey: "fake",
+		Target:   domain.TargetRef{Type: "document", ID: "doc-1"},
+		Config: map[string]any{
+			"bad": func() {},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "config is not JSON serializable") {
+		t.Fatalf("expected non-serializable config error, got %v", err)
+	}
+}
+
 func TestSubmitCandidateForReviewCreatesVersionWithoutGenerate(t *testing.T) {
 	ctx := context.Background()
 	executor := &testkit.Executor{}

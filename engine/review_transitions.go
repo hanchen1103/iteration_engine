@@ -29,7 +29,7 @@ func (s *Service) applyReviewDecision(ctx context.Context, run *domain.Run, vers
 		}
 		contextOptions := resolveGenerateContextOptions(run, nil)
 		plan := autoReviewPlan(version, review, contextOptions.Review)
-		_, err := s.startGenerate(ctx, run, version, review, plan, contextOptions, domain.ReviewPolicyRunDefault, "")
+		_, err := s.startGenerate(ctx, run, version, review, plan, version.GenerateConfig, contextOptions, domain.ReviewPolicyRunDefault, "")
 		return err
 	default:
 		return s.failRunVersion(ctx, run, version, decision.Message)

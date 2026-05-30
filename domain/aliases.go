@@ -19,6 +19,7 @@ type Version = model.Version
 type VersionContent = model.VersionContent
 type VersionNode = model.VersionNode
 type Artifact = model.Artifact
+type Config = model.Config
 
 type ReviewResult = model.ReviewResult
 type ReviewIssue = model.ReviewIssue
@@ -118,6 +119,10 @@ func CloneRawMessage(in json.RawMessage) json.RawMessage {
 
 func CloneRawMessageMap(in map[string]json.RawMessage) map[string]json.RawMessage {
 	return model.CloneRawMessageMap(in)
+}
+
+func NormalizeConfig(value any) (json.RawMessage, error) {
+	return model.NormalizeConfig(value)
 }
 
 func CloneArtifacts(in []Artifact) []Artifact {

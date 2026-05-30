@@ -66,6 +66,9 @@ Important columns:
 - `iteration_plan`: source, instruction, explanation, and directives.
 - `generate_job_id`, `review_job_id`: used by callback handlers to find a
   version from a job ID.
+- `generate_config` / `review_config`: version-level scene-owned runtime
+  config snapshots. Store these as opaque JSON; the engine persists and returns
+  them but does not interpret scene-specific fields.
 - `generated_content`: candidate content used for review and adopt. Manual edits
   overwrite this field in place.
 - `edited_content`: legacy/optional compatibility field; the current engine edit
@@ -108,7 +111,10 @@ For `listening_generate`, one shared adapter can serve all practices. Practice
 specific data should live in:
 
 - `Run.Target`: listening practice ID
-- `Run.Config`: model/api key/topic/seed/initial passage
+- `Run.Config`: default model/api key/topic/seed/initial passage config
+- `Version.GenerateConfig` / `Version.ReviewConfig`: effective per-version
+  runtime config snapshots, using `Run.Config` as the default when no override
+  is provided
 - `Version.GeneratedContent`: generated candidate JSON
 - `Version.ReviewExtensions`: fields such as `feedback_items`,
   `difficulty_profile`, and `manual_controls`

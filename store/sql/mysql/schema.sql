@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS iteration_engine_versions (
     review_rule_snapshot JSON NOT NULL,
     generate_attempt_no INT NOT NULL DEFAULT 0,
     review_attempt_no INT NOT NULL DEFAULT 0,
+    generate_config JSON NULL,
+    review_config JSON NULL,
     generate_job_id VARCHAR(128) NULL,
     review_job_id VARCHAR(128) NULL,
     generate_input_json JSON NULL,

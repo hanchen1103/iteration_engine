@@ -11,7 +11,7 @@ type CreateRunRequest struct {
 	Target            domain.TargetRef               `json:"target"`
 	IterationMode     domain.IterationMode           `json:"iterationMode,omitempty"`
 	MaxIterations     int                            `json:"maxIterations,omitempty"`
-	Config            json.RawMessage                `json:"config,omitempty"`
+	Config            any                            `json:"config,omitempty"`
 	GenerateContext   *domain.GenerateContextOptions `json:"generateContext,omitempty"`
 	DefaultDirectives []domain.IterationDirective    `json:"defaultDirectives,omitempty"`
 	Actor             string                         `json:"actor,omitempty"`
@@ -22,6 +22,7 @@ type ContinueRunRequest struct {
 	BaseVersionID   string                         `json:"baseVersionID,omitempty"`
 	BaseVersionNo   int                            `json:"baseVersionNo,omitempty"`
 	MaxIterations   int                            `json:"maxIterations,omitempty"`
+	GenerateConfig  any                            `json:"generateConfig,omitempty"`
 	GenerateContext *domain.GenerateContextOptions `json:"generateContext,omitempty"`
 	Plan            domain.IterationPlan           `json:"plan"`
 	Actor           string                         `json:"actor,omitempty"`
@@ -48,22 +49,25 @@ type EditVersionRequest struct {
 }
 
 type ReviewVersionRequest struct {
-	RunID     string               `json:"runID"`
-	VersionID string               `json:"versionID"`
-	OnFail    domain.ReviewPolicy  `json:"onFail,omitempty"`
-	Plan      domain.IterationPlan `json:"plan"`
-	Actor     string               `json:"actor,omitempty"`
+	RunID        string               `json:"runID"`
+	VersionID    string               `json:"versionID"`
+	OnFail       domain.ReviewPolicy  `json:"onFail,omitempty"`
+	ReviewConfig any                  `json:"reviewConfig,omitempty"`
+	Plan         domain.IterationPlan `json:"plan"`
+	Actor        string               `json:"actor,omitempty"`
 }
 
 type SubmitCandidateForReviewRequest struct {
-	RunID         string               `json:"runID"`
-	BaseVersionID string               `json:"baseVersionID,omitempty"`
-	BaseVersionNo int                  `json:"baseVersionNo,omitempty"`
-	Content       json.RawMessage      `json:"content"`
-	Artifacts     []domain.Artifact    `json:"artifacts,omitempty"`
-	Plan          domain.IterationPlan `json:"plan"`
-	OnFail        domain.ReviewPolicy  `json:"onFail,omitempty"`
-	Actor         string               `json:"actor,omitempty"`
+	RunID          string               `json:"runID"`
+	BaseVersionID  string               `json:"baseVersionID,omitempty"`
+	BaseVersionNo  int                  `json:"baseVersionNo,omitempty"`
+	Content        json.RawMessage      `json:"content"`
+	Artifacts      []domain.Artifact    `json:"artifacts,omitempty"`
+	GenerateConfig any                  `json:"generateConfig,omitempty"`
+	ReviewConfig   any                  `json:"reviewConfig,omitempty"`
+	Plan           domain.IterationPlan `json:"plan"`
+	OnFail         domain.ReviewPolicy  `json:"onFail,omitempty"`
+	Actor          string               `json:"actor,omitempty"`
 }
 
 type AdoptVersionRequest struct {

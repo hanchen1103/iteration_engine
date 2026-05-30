@@ -8,8 +8,12 @@ import (
 	"github.com/hanchen1103/iteration_engine/ports"
 )
 
-func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *domain.Version, policy domain.ReviewPolicy, actor string) error {
+func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *domain.Version, policy domain.ReviewPolicy, reviewConfig any, actor string) error {
 	adapter, spec, err := s.adapter(run.SceneKey)
+	if err != nil {
+		return err
+	}
+	effectiveReviewConfig, err := resolveReviewConfig(run, version, reviewConfig)
 	if err != nil {
 		return err
 	}
@@ -36,6 +40,7 @@ func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *
 		Run:       run,
 		Target:    target,
 		Version:   version,
+		Config:    domain.CloneRawMessage(effectiveReviewConfig),
 		Content:   content,
 		Artifacts: version.EffectiveArtifacts(),
 	})
@@ -50,6 +55,7 @@ func (s *Service) dispatchReview(ctx context.Context, run *domain.Run, version *
 	now := s.now()
 	version.ReviewPolicy = domain.NormalizeReviewPolicy(policy)
 	version.ReviewAttemptNo++
+	version.ReviewConfig = domain.CloneRawMessage(effectiveReviewConfig)
 	version.ReviewInputJSON = domain.CloneRawMessage(jobReq.Input)
 	version.ReviewJSON = nil
 	version.ReviewPass = nil

@@ -76,6 +76,39 @@ func resolveGenerateContextOptions(run *domain.Run, override *domain.GenerateCon
 	return domain.GenerateContextOptions{}
 }
 
+func normalizeRequestConfig(fieldName string, value any) (json.RawMessage, error) {
+	config, err := domain.NormalizeConfig(value)
+	if err != nil {
+		return nil, invalidError(fmt.Sprintf("%s is not JSON serializable: %v", fieldName, err))
+	}
+	return config, nil
+}
+
+func resolveConfigWithFallback(fieldName string, override any, fallback json.RawMessage) (json.RawMessage, error) {
+	if override != nil {
+		return normalizeRequestConfig(fieldName, override)
+	}
+	return domain.CloneRawMessage(fallback), nil
+}
+
+func resolveReviewConfig(run *domain.Run, version *domain.Version, override any) (json.RawMessage, error) {
+	if override != nil {
+		return normalizeRequestConfig("reviewConfig", override)
+	}
+	if version != nil {
+		if len(version.ReviewConfig) > 0 {
+			return domain.CloneRawMessage(version.ReviewConfig), nil
+		}
+		if len(version.GenerateConfig) > 0 {
+			return domain.CloneRawMessage(version.GenerateConfig), nil
+		}
+	}
+	if run != nil {
+		return domain.CloneRawMessage(run.Config), nil
+	}
+	return nil, nil
+}
+
 func buildGenerateContext(base *domain.Version, previousReview *domain.ReviewResult, options domain.GenerateContextOptions) domain.GenerateContext {
 	return domain.GenerateContext{
 		BaseVersion:    buildBaseVersionContext(base, options.BaseVersion),

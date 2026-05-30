@@ -22,9 +22,11 @@ func cloneVersion(in *domain.Version) *domain.Version {
 	out := *in
 	out.IterationPlan.Directives = domain.CloneDirectives(in.IterationPlan.Directives)
 	out.TargetSnapshot = domain.CloneRawMessage(in.TargetSnapshot)
+	out.GenerateConfig = domain.CloneRawMessage(in.GenerateConfig)
 	out.GenerateInputJSON = domain.CloneRawMessage(in.GenerateInputJSON)
 	out.GeneratedContent = domain.CloneRawMessage(in.GeneratedContent)
 	out.GeneratedArtifacts = domain.CloneArtifacts(in.GeneratedArtifacts)
+	out.ReviewConfig = domain.CloneRawMessage(in.ReviewConfig)
 	out.ReviewInputJSON = domain.CloneRawMessage(in.ReviewInputJSON)
 	out.ReviewJSON = domain.CloneRawMessage(in.ReviewJSON)
 	out.ReviewPass = cloneBoolPtr(in.ReviewPass)

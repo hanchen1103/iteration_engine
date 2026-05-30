@@ -19,6 +19,8 @@ type Version struct {
 	ReviewRuleSnapshot   RuleSpec                   `json:"reviewRuleSnapshot"`
 	GenerateAttemptNo    int                        `json:"generateAttemptNo"`
 	ReviewAttemptNo      int                        `json:"reviewAttemptNo"`
+	GenerateConfig       json.RawMessage            `json:"generateConfig,omitempty"`
+	ReviewConfig         json.RawMessage            `json:"reviewConfig,omitempty"`
 	GenerateJobID        string                     `json:"generateJobID,omitempty"`
 	ReviewJobID          string                     `json:"reviewJobID,omitempty"`
 	GenerateInputJSON    json.RawMessage            `json:"generateInputJson,omitempty"`

@@ -201,6 +201,9 @@ engine 会通过 `Store.FindVersionByJobID` 找到对应版本，并忽略已经
 next, err := service.ContinueRun(ctx, iterengine.ContinueRunRequest{
     RunID:         runID,
     BaseVersionID: versionID,
+    GenerateConfig: domain.Config{
+        "model": "model-for-this-version",
+    },
     Plan: domain.IterationPlan{
         Source:      domain.PlanSourceManual,
         Instruction: "Make the answer shorter and more direct.",
@@ -225,6 +228,9 @@ reviewVersion, err := service.ReviewVersion(ctx, iterengine.ReviewVersionRequest
     RunID:     runID,
     VersionID: versionID,
     OnFail:    domain.ReviewPolicyWaitManual,
+    ReviewConfig: domain.Config{
+        "model": "review-model-for-this-version",
+    },
 })
 ```
 

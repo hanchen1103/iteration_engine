@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/hanchen1103/iteration_engine/domain"
@@ -40,6 +41,7 @@ func (s *Service) EditVersion(ctx context.Context, req EditVersionRequest) (*dom
 		Artifacts: req.Artifacts,
 		Actor:     req.Actor,
 	}, spec, now)
+	version.ReviewConfig = nil
 	if err := s.store.UpdateVersion(ctx, version); err != nil {
 		return nil, err
 	}
@@ -87,11 +89,11 @@ func (s *Service) ReviewVersion(ctx context.Context, req ReviewVersionRequest) (
 	if plan.BaseVersionID == "" {
 		plan.BaseVersionID = version.ID
 	}
-	reviewVersion, err := s.createVersionFromContent(ctx, run, version, version.EffectiveContent(), version.EffectiveArtifacts(), plan, policy, req.Actor)
+	reviewVersion, err := s.createVersionFromContent(ctx, run, version, version.EffectiveContent(), version.EffectiveArtifacts(), plan, version.GenerateConfig, req.ReviewConfig, policy, req.Actor)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.dispatchReview(ctx, run, reviewVersion, policy, req.Actor); err != nil {
+	if err := s.dispatchReview(ctx, run, reviewVersion, policy, req.ReviewConfig, req.Actor); err != nil {
 		return nil, err
 	}
 	return s.store.GetVersion(ctx, reviewVersion.ID)
@@ -136,11 +138,11 @@ func (s *Service) SubmitCandidateForReview(ctx context.Context, req SubmitCandid
 	if base != nil && plan.BaseVersionID == "" {
 		plan.BaseVersionID = base.ID
 	}
-	version, err := s.createVersionFromContent(ctx, run, base, req.Content, req.Artifacts, plan, policy, req.Actor)
+	version, err := s.createVersionFromContent(ctx, run, base, req.Content, req.Artifacts, plan, req.GenerateConfig, req.ReviewConfig, policy, req.Actor)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.dispatchReview(ctx, run, version, policy, req.Actor); err != nil {
+	if err := s.dispatchReview(ctx, run, version, policy, req.ReviewConfig, req.Actor); err != nil {
 		return nil, err
 	}
 	return s.store.GetVersion(ctx, version.ID)
@@ -213,8 +215,20 @@ func (s *Service) AdoptVersion(ctx context.Context, req AdoptVersionRequest) (*p
 	return result, nil
 }
 
-func (s *Service) createVersionFromContent(ctx context.Context, run *domain.Run, base *domain.Version, content []byte, artifacts []domain.Artifact, plan domain.IterationPlan, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
+func (s *Service) createVersionFromContent(ctx context.Context, run *domain.Run, base *domain.Version, content []byte, artifacts []domain.Artifact, plan domain.IterationPlan, generateConfig any, reviewConfig any, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
 	adapter, spec, err := s.adapter(run.SceneKey)
+	if err != nil {
+		return nil, err
+	}
+	generateFallback := json.RawMessage(nil)
+	if base != nil {
+		generateFallback = base.GenerateConfig
+	}
+	effectiveGenerateConfig, err := resolveConfigWithFallback("generateConfig", generateConfig, generateFallback)
+	if err != nil {
+		return nil, err
+	}
+	effectiveReviewConfig, err := resolveReviewConfig(run, &domain.Version{GenerateConfig: effectiveGenerateConfig}, reviewConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +271,8 @@ func (s *Service) createVersionFromContent(ctx context.Context, run *domain.Run,
 		TargetSnapshot:       targetSnapshot,
 		GenerateRuleSnapshot: spec.GenerateRule,
 		ReviewRuleSnapshot:   spec.ReviewRule,
+		GenerateConfig:       effectiveGenerateConfig,
+		ReviewConfig:         effectiveReviewConfig,
 		GeneratedContent:     domain.CloneRawMessage(content),
 		GeneratedArtifacts:   domain.CloneArtifacts(artifacts),
 		CreatedBy:            strings.TrimSpace(actor),

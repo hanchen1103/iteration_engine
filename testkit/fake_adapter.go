@@ -47,6 +47,7 @@ func (a *Adapter) LoadTarget(ctx context.Context, target domain.TargetRef) (*dom
 func (a *Adapter) BuildGenerateJob(ctx context.Context, req ports.GenerateRequest) (*ports.JobRequest, error) {
 	_ = ctx
 	input, _ := json.Marshal(map[string]any{
+		"generate_config":  json.RawMessage(req.Config),
 		"plan":             req.Plan,
 		"context":          req.Context,
 		"context_options":  req.ContextOptions,
@@ -67,7 +68,8 @@ func (a *Adapter) ParseGenerateResult(ctx context.Context, raw []byte) (*domain.
 func (a *Adapter) BuildReviewJob(ctx context.Context, req ports.ReviewRequest) (*ports.JobRequest, error) {
 	_ = ctx
 	input, _ := json.Marshal(map[string]any{
-		"content": json.RawMessage(req.Content),
+		"review_config": json.RawMessage(req.Config),
+		"content":       json.RawMessage(req.Content),
 	})
 	return &ports.JobRequest{TaskName: "fake_review", Input: input}, nil
 }

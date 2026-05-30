@@ -33,6 +33,10 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*domain.
 	if err := validateDirectives(req.DefaultDirectives); err != nil {
 		return nil, err
 	}
+	config, err := normalizeRequestConfig("config", req.Config)
+	if err != nil {
+		return nil, err
+	}
 
 	ruleSetSnapshot, err := json.Marshal(spec)
 	if err != nil {
@@ -45,7 +49,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*domain.
 		Status:            domain.RunStatusPending,
 		IterationMode:     mode,
 		MaxIterations:     state.ResolveMaxIterations(req.MaxIterations, spec.Capability.DefaultMaxIterations, defaultMaxIterations),
-		Config:            domain.CloneRawMessage(req.Config),
+		Config:            config,
 		GenerateContext:   domain.CloneGenerateContextOptions(req.GenerateContext),
 		DefaultDirectives: domain.CloneDirectives(req.DefaultDirectives),
 		RuleSetSnapshot:   ruleSetSnapshot,
@@ -77,7 +81,7 @@ func (s *Service) StartRun(ctx context.Context, runID string) (*domain.Version, 
 		Instruction: "Generate the first candidate version.",
 		Directives:  domain.CloneDirectives(run.DefaultDirectives),
 	}
-	return s.startGenerate(ctx, run, nil, nil, plan, resolveGenerateContextOptions(run, nil), domain.ReviewPolicyRunDefault, run.CreatedBy)
+	return s.startGenerate(ctx, run, nil, nil, plan, nil, resolveGenerateContextOptions(run, nil), domain.ReviewPolicyRunDefault, run.CreatedBy)
 }
 
 func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*domain.Version, error) {
@@ -127,7 +131,7 @@ func (s *Service) ContinueRun(ctx context.Context, req ContinueRunRequest) (*dom
 
 	previousReview := reviewResultFromVersion(base)
 	s.recordEvent(ctx, domain.EventManualContinue, run.ID, base.ID, req.Actor, "", mustMarshal(plan))
-	return s.startGenerate(ctx, run, base, previousReview, plan, resolveGenerateContextOptions(run, req.GenerateContext), domain.ReviewPolicyRunDefault, req.Actor)
+	return s.startGenerate(ctx, run, base, previousReview, plan, req.GenerateConfig, resolveGenerateContextOptions(run, req.GenerateContext), domain.ReviewPolicyRunDefault, req.Actor)
 }
 
 func (s *Service) GetRunDetail(ctx context.Context, runID string) (*RunDetail, error) {

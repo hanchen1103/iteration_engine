@@ -9,8 +9,12 @@ import (
 	"github.com/hanchen1103/iteration_engine/ports"
 )
 
-func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *domain.Version, previousReview *domain.ReviewResult, plan domain.IterationPlan, contextOptions domain.GenerateContextOptions, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
+func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *domain.Version, previousReview *domain.ReviewResult, plan domain.IterationPlan, generateConfig any, contextOptions domain.GenerateContextOptions, reviewPolicy domain.ReviewPolicy, actor string) (*domain.Version, error) {
 	adapter, spec, err := s.adapter(run.SceneKey)
+	if err != nil {
+		return nil, err
+	}
+	effectiveGenerateConfig, err := resolveConfigWithFallback("generateConfig", generateConfig, run.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +48,7 @@ func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *doma
 		GenerateRuleSnapshot: spec.GenerateRule,
 		ReviewRuleSnapshot:   spec.ReviewRule,
 		GenerateAttemptNo:    1,
+		GenerateConfig:       effectiveGenerateConfig,
 		CreatedBy:            strings.TrimSpace(actor),
 		UpdatedBy:            strings.TrimSpace(actor),
 		CreatedAt:            now,
@@ -63,7 +68,9 @@ func (s *Service) startGenerate(ctx context.Context, run *domain.Run, base *doma
 	generateContext := buildGenerateContext(base, previousReview, contextOptions)
 	jobReq, err := adapter.BuildGenerateJob(ctx, ports.GenerateRequest{
 		Run:            run,
+		Version:        version,
 		Target:         target,
+		Config:         domain.CloneRawMessage(version.GenerateConfig),
 		Context:        generateContext,
 		ContextOptions: contextOptions,
 		Plan:           version.IterationPlan,
